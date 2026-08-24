@@ -1,10 +1,13 @@
-"""Versand der wöchentlichen Zusammenfassung über die Gmail-API (kein SMTP/Passwort)."""
+"""Sends the weekly summary via the Gmail API (no SMTP/password)."""
 from __future__ import annotations
 
 import base64
+import logging
 from email.mime.text import MIMEText
 
-from schultermine.google_auth import GoogleAuthenticator
+from school_events.google_auth import GoogleAuthenticator
+
+logger = logging.getLogger(__name__)
 
 
 class GmailMailer:
@@ -19,3 +22,4 @@ class GmailMailer:
         message["subject"] = subject
         raw = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
         service.users().messages().send(userId="me", body={"raw": raw}).execute()
+        logger.info("Sent email %r to %s", subject, self._send_to)

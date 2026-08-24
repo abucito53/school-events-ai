@@ -1,12 +1,16 @@
-"""Baut den Text der wöchentlichen Zusammenfassungs-Mail."""
+"""Builds the text of the weekly summary email."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from schultermine.models import SchoolEvent
+from school_events.models import SchoolEvent
 
 
 class WeeklySummaryBuilder:
+    """Builds the weekly summary as German text - this is the end-user-facing
+    email body the user's family reads, so it stays German even though the
+    rest of the codebase is in English."""
+
     def __init__(self, calendar_name: str, horizon_days: int = 7):
         self._calendar_name = calendar_name
         self._horizon_days = horizon_days

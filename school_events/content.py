@@ -1,8 +1,9 @@
-"""Extrahiert verwertbaren Text aus PDF-Dateien und .eml-E-Mails."""
+"""Extracts usable text from PDF files and .eml emails."""
 from __future__ import annotations
 
 import email
 import io
+import logging
 import re
 from dataclasses import dataclass
 from email.header import decode_header
@@ -10,13 +11,15 @@ from email.message import Message
 from pathlib import Path
 from typing import Optional
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class ExtractedContent:
     text: str
-    """Vollständiger Text, der ans LLM geschickt wird (Betreff+Body+Anhänge)."""
+    """Full text sent to the LLM (subject + body + attachments)."""
     primary_source: Optional[Path]
-    """Bevorzugte Datei, auf die im Kalendereintrag verlinkt wird (meist ein PDF-Anhang)."""
+    """Preferred file to link from the calendar entry (usually a PDF attachment)."""
 
 
 class PdfTextExtractor:
@@ -56,8 +59,8 @@ class MimeDecoder:
 
 
 class ContentExtractor:
-    """Liest eine Datei aus dem Eingangsordner (.pdf oder .eml) und liefert den
-    Text, den das LLM zur Terminerkennung bekommt."""
+    """Reads a file from the inbox folder (.pdf or .eml) and returns the
+    text that gets sent to the LLM for event detection."""
 
     def __init__(self, attachments_dir: Path):
         self._attachments_dir = attachments_dir
@@ -70,10 +73,11 @@ class ContentExtractor:
             return self._extract_pdf(path)
         if path.suffix.lower() == ".eml":
             return self._extract_eml(path)
-        raise ValueError(f"Nicht unterstützter Dateityp: {path.suffix}")
+        raise ValueError(f"Unsupported file type: {path.suffix}")
 
     def _extract_pdf(self, path: Path) -> ExtractedContent:
         text = self._pdf.extract(path.read_bytes())
+        logger.debug("Extracted %d chars of text from PDF %s", len(text), path.name)
         return ExtractedContent(text=f"[PDF: {path.name}]\n{text}", primary_source=None)
 
     def _extract_eml(self, path: Path) -> ExtractedContent:
@@ -89,14 +93,20 @@ class ContentExtractor:
         if not body_text.strip() and body_html.strip():
             body_text = self._html.to_text(body_html)
 
-        parts = [f"[E-MAIL: {path.name}]", f"Betreff: {subject}", f"Von: {sender}",
-                 f"Datum: {date_hdr}", "", body_text.strip()]
+        logger.debug(
+            "Parsed email %s: subject=%r, %d attachment(s)",
+            path.name, subject, len(attachments),
+        )
+
+        parts = [f"[EMAIL: {path.name}]", f"Subject: {subject}", f"From: {sender}",
+                 f"Date: {date_hdr}", "", body_text.strip()]
         for attach_path in attachments:
             try:
                 attach_text = self._pdf.extract(attach_path.read_bytes())
             except Exception:
+                logger.warning("Could not extract text from attachment %s", attach_path.name, exc_info=True)
                 attach_text = ""
-            parts.append(f"\n[Anhang: {attach_path.name}]\n{attach_text}")
+            parts.append(f"\n[Attachment: {attach_path.name}]\n{attach_text}")
 
         primary_source = attachments[0] if attachments else None
         return ExtractedContent(text="\n".join(parts), primary_source=primary_source)
@@ -132,7 +142,7 @@ class ContentExtractor:
             return payload.decode("utf-8", errors="replace")
 
     def _save_attachment(self, part: Message, stem: str) -> Path:
-        filename = self._mime.decode(part.get_filename() or "anhang.pdf")
+        filename = self._mime.decode(part.get_filename() or "attachment.pdf")
         safe_name = re.sub(r"[^\w\-.]", "_", f"{stem}_{filename}")
         out_path = self._attachments_dir / safe_name
         out_path.write_bytes(part.get_payload(decode=True) or b"")

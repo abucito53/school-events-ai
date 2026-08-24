@@ -1,15 +1,18 @@
-"""Orchestriert die Verarbeitung des Eingangsordners: Text extrahieren, ans
-LLM schicken, Datei archivieren, Event-Store + Kalender aktualisieren."""
+"""Orchestrates processing of the inbox folder: extract text, send to the
+LLM, archive the file, update the event repository + calendar."""
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
-from schultermine.calendar_sync import GoogleCalendarSync
-from schultermine.config import AppConfig
-from schultermine.content import ContentExtractor
-from schultermine.ics_export import IcsExporter
-from schultermine.ollama_client import OllamaEventExtractor
-from schultermine.store import EventStore, JsonSet, content_hash
+from school_events.calendar_sync import GoogleCalendarSync
+from school_events.config import AppConfig
+from school_events.content import ContentExtractor
+from school_events.ics_export import IcsExporter
+from school_events.ollama_client import OllamaEventExtractor
+from school_events.store import EventRepository, JsonSet, content_hash
+
+logger = logging.getLogger(__name__)
 
 
 class InboxProcessor:
@@ -18,7 +21,7 @@ class InboxProcessor:
         config: AppConfig,
         content_extractor: ContentExtractor,
         llm_extractor: OllamaEventExtractor,
-        event_store: EventStore,
+        event_store: EventRepository,
         ics_exporter: IcsExporter,
         calendar_sync: GoogleCalendarSync | None,
     ):
@@ -31,14 +34,17 @@ class InboxProcessor:
         self._processed = JsonSet(config.paths.data / "processed_hashes.json")
 
     def run(self) -> int:
-        """Verarbeitet alle neuen Dateien im Eingangsordner. Gibt die Anzahl
-        neu erkannter/aktualisierter Termine zurück."""
+        """Processes all new files in the inbox folder. Returns the number
+        of newly detected/updated events."""
         candidates = sorted(
             p for p in self._config.paths.inbox.iterdir()
             if p.is_file() and p.suffix.lower() in (".pdf", ".eml")
         )
         if not candidates:
+            logger.debug("Nothing to process in %s", self._config.paths.inbox)
             return 0
+
+        logger.info("Found %d file(s) to process in %s", len(candidates), self._config.paths.inbox)
 
         new_event_count = 0
         for path in candidates:
@@ -55,17 +61,20 @@ class InboxProcessor:
     def _process_one(self, path: Path) -> int:
         file_hash = content_hash(path.read_bytes())
         if file_hash in self._processed:
+            logger.debug("%s already processed (hash=%s), skipping", path.name, file_hash)
             return 0
 
+        logger.info("Processing %s", path.name)
         try:
             extracted = self._content_extractor.extract(path)
-        except Exception as e:
-            print(f"  {path.name}: konnte nicht gelesen werden ({e}), übersprungen.")
+        except Exception:
+            logger.warning("Could not read %s, skipping", path.name, exc_info=True)
             self._processed.add(file_hash)
             self._processed.save()
             return 0
 
         if not extracted.text.strip():
+            logger.info("%s contains no usable text, skipping", path.name)
             self._processed.add(file_hash)
             self._processed.save()
             return 0
@@ -88,4 +97,5 @@ class InboxProcessor:
             archive_path = self._config.paths.originals / f"{path.stem}_{counter}{path.suffix}"
             counter += 1
         path.rename(archive_path)
+        logger.debug("Archived %s -> %s", path.name, archive_path)
         return archive_path

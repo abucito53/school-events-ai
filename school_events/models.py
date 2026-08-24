@@ -1,4 +1,4 @@
-"""Domänenmodell: ein einzelner erkannter Schultermin."""
+"""Domain model: a single detected school event."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -23,8 +23,8 @@ class SchoolEvent:
 
     @classmethod
     def from_llm_dict(cls, raw: dict, event_id: str, source_path: str) -> Optional["SchoolEvent"]:
-        """Baut ein SchoolEvent aus dem vom LLM gelieferten JSON-Objekt.
-        Gibt None zurück, falls kein gültiges Datum enthalten ist."""
+        """Builds a SchoolEvent from the JSON object returned by the LLM.
+        Returns None if no valid date is present."""
         date_str = raw.get("date")
         if not date_str:
             return None
@@ -49,6 +49,9 @@ class SchoolEvent:
 
         return cls(
             id=event_id,
+            # Fallback stays German on purpose: this text can end up visible
+            # in the user's calendar/email, which are German-language
+            # end-user output, unlike the rest of this (English) codebase.
             title=(raw.get("title") or "Schultermin").strip(),
             event_date=event_date,
             end_date=end_date,

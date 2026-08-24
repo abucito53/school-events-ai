@@ -1,17 +1,21 @@
-"""OAuth2-Authentifizierung fürs dedizierte Gmail-Konto (Gmail-API + Calendar-API).
+"""OAuth2 authentication for the dedicated Gmail account (Gmail API + Calendar API).
 
-Kein Passwort wird je gespeichert - nur ein auf drei Rechte beschränktes,
-jederzeit unter myaccount.google.com/permissions widerrufbares Token:
-Mails lesen, Mails senden, Kalender verwalten.
+No password is ever stored - only a token limited to three scopes, revocable
+at any time at myaccount.google.com/permissions: read mail, send mail,
+manage calendar.
 """
 from __future__ import annotations
+
+import logging
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import Resource, build
 
-from schultermine.config import GmailOAuthConfig
+from school_events.config import GmailOAuthConfig
+
+logger = logging.getLogger(__name__)
 
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
@@ -21,7 +25,7 @@ SCOPES = [
 
 
 class GoogleAuthenticator:
-    """Verwaltet Credentials und baut authentifizierte API-Clients (Resource-Objekte)."""
+    """Manages credentials and builds authenticated API clients (Resource objects)."""
 
     def __init__(self, config: GmailOAuthConfig):
         self._config = config
@@ -35,10 +39,13 @@ class GoogleAuthenticator:
 
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
+                logger.info("OAuth2 token expired, refreshing")
                 creds.refresh(Request())
             else:
+                logger.info("No valid token found, starting OAuth2 consent flow (a browser will open)")
                 creds = self._run_consent_flow()
             self._config.token_path.write_text(creds.to_json())
+            logger.info("Credentials saved to %s", self._config.token_path)
 
         self._credentials = creds
         return creds
@@ -51,13 +58,13 @@ class GoogleAuthenticator:
     def _run_consent_flow(self) -> Credentials:
         if not self._config.credentials_path.exists():
             raise FileNotFoundError(
-                f"{self._config.credentials_path} nicht gefunden. Siehe README, "
-                "Abschnitt 'OAuth2 mit Gmail einrichten'."
+                f"{self._config.credentials_path} not found. See the README, "
+                "section 'OAuth2 mit Gmail einrichten'."
             )
         flow = InstalledAppFlow.from_client_secrets_file(str(self._config.credentials_path), SCOPES)
-        # Öffnet einmalig einen Browser (nur nötig beim ersten Mal bzw. falls
-        # der Refresh-Token ungültig geworden ist). Funktioniert nur mit
-        # echtem Desktop - siehe README für den Docker-Hinweis dazu.
+        # Opens a browser once (only needed the first time, or once the
+        # refresh token has become invalid). Requires a real desktop - see
+        # the README for the note on why this doesn't work inside Docker.
         return flow.run_local_server(port=0)
 
     def gmail_service(self) -> Resource:

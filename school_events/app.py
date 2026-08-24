@@ -1,27 +1,27 @@
-"""Baut alle Klassen anhand der Config zusammen (einfache manuelle
-Dependency-Injection, kein Framework nötig für dieses Projekt)."""
+"""Wires up all classes based on the config (simple manual dependency
+injection, no framework needed for a project this size)."""
 from __future__ import annotations
 
-from schultermine.calendar_sync import GoogleCalendarSync
-from schultermine.config import AppConfig
-from schultermine.content import ContentExtractor
-from schultermine.gmail_fetcher import GmailFetcher
-from schultermine.gmail_mailer import GmailMailer
-from schultermine.google_auth import GoogleAuthenticator
-from schultermine.ics_export import IcsExporter
-from schultermine.inbox_processor import InboxProcessor
-from schultermine.llm import OllamaEventExtractor
-from schultermine.store import EventStore
-from schultermine.summary import WeeklySummaryBuilder
+from school_events.calendar_sync import GoogleCalendarSync
+from school_events.config import AppConfig
+from school_events.content import ContentExtractor
+from school_events.gmail_fetcher import GmailFetcher
+from school_events.gmail_mailer import GmailMailer
+from school_events.google_auth import GoogleAuthenticator
+from school_events.ics_export import IcsExporter
+from school_events.inbox_processor import InboxProcessor
+from school_events.ollama_client import OllamaEventExtractor
+from school_events.store import EventRepository
+from school_events.summary import WeeklySummaryBuilder
 
 
 class Application:
-    """Zentraler Einstiegspunkt: erzeugt und verdrahtet alle Komponenten."""
+    """Central entry point: creates and wires up all components."""
 
     def __init__(self, config: AppConfig):
         self.config = config
         self.auth = GoogleAuthenticator(config.gmail)
-        self.event_store = EventStore(config.paths.data / "events.json")
+        self.event_store = EventRepository(config.paths.data / "events.json")
 
     def gmail_fetcher(self) -> GmailFetcher:
         return GmailFetcher(self.auth, self.config.gmail, self.config.paths)

@@ -1,4 +1,4 @@
-"""Lädt und validiert config.yaml in eine typisierte AppConfig."""
+"""Loads and validates config.yaml into a typed AppConfig."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -20,7 +20,11 @@ class Paths:
         base_dir = base_dir.expanduser()
         paths = cls(
             base_dir=base_dir,
-            eingang=base_dir / "inbox",
+            # Folder name stays German ("eingang") even in this
+            # English-language code: it's a user-facing path the user
+            # already drops files into (see README) - renaming it would
+            # silently break an existing installation.
+            inbox=base_dir / "eingang",
             originals=base_dir / "originals",
             data=base_dir / "data",
             calendar=base_dir / "calendar",
@@ -48,7 +52,7 @@ class OllamaConfig:
 @dataclass(frozen=True)
 class SchedulerConfig:
     fetch_interval_minutes: int = 60
-    weekly_weekday: int = 6  # 0=Montag ... 6=Sonntag
+    weekly_weekday: int = 6  # 0=Monday ... 6=Sunday
     weekly_hour: int = 18
     weekly_minute: int = 30
 
@@ -66,8 +70,8 @@ class AppConfig:
         path = Path(config_path)
         if not path.exists():
             raise FileNotFoundError(
-                f"{path} nicht gefunden. Kopiere config.example.yaml zu config.yaml "
-                "und trage deine Daten ein."
+                f"{path} not found. Copy config.example.yaml to config.yaml "
+                "and fill in your values."
             )
         with open(path, "r", encoding="utf-8") as f:
             raw = yaml.safe_load(f)

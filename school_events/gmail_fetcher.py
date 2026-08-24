@@ -1,13 +1,16 @@
-"""Holt Mails aus dem konfigurierten Gmail-Label per API (nur lesen) und
-legt sie als .eml-Dateien im Eingangsordner ab."""
+"""Fetches emails from the configured Gmail label via the API (read-only)
+and drops them as .eml files into the inbox folder."""
 from __future__ import annotations
 
 import base64
+import logging
 from pathlib import Path
 
-from schultermine.config import GmailOAuthConfig, Paths
-from schultermine.google_auth import GoogleAuthenticator
-from schultermine.store import JsonSet
+from school_events.config import GmailOAuthConfig, Paths
+from school_events.google_auth import GoogleAuthenticator
+from school_events.store import JsonSet
+
+logger = logging.getLogger(__name__)
 
 
 class GmailFetcher:
@@ -23,6 +26,10 @@ class GmailFetcher:
         message_ids = self._list_message_ids(service, label_id)
 
         new_ids = [m for m in message_ids if m not in self._fetched]
+        logger.debug(
+            "Label '%s': %d message(s) total, %d new",
+            self._gmail_config.label_name, len(message_ids), len(new_ids),
+        )
         if not new_ids:
             return []
 
@@ -33,8 +40,10 @@ class GmailFetcher:
             out_path.write_bytes(raw_bytes)
             written.append(out_path)
             self._fetched.add(msg_id)
+            logger.debug("Fetched message %s -> %s", msg_id, out_path.name)
 
         self._fetched.save()
+        logger.info("Fetched %d new message(s) from label '%s'", len(written), self._gmail_config.label_name)
         return written
 
     @staticmethod
@@ -44,8 +53,8 @@ class GmailFetcher:
             if label["name"].lower() == label_name.lower():
                 return label["id"]
         raise ValueError(
-            f"Label '{label_name}' existiert nicht in diesem Gmail-Konto. "
-            "Lege es zuerst in Gmail an (siehe README)."
+            f"Label '{label_name}' does not exist in this Gmail account. "
+            "Create it first (see README)."
         )
 
     @staticmethod

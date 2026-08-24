@@ -1,17 +1,24 @@
-"""Synchronisiert erkannte Termine in einen dedizierten Google Kalender.
+"""Syncs detected events into a dedicated Google Calendar.
 
-Proton Calendar abonniert anschliessend die von Google automatisch erzeugte
-"geheime iCal-Adresse" dieses Kalenders (siehe README). Jeder Termin wird
-über eine stabile ID (extendedProperties.private) wiedererkannt: existiert
-er schon, wird er aktualisiert statt dupliziert.
+Proton Calendar then subscribes to the "secret iCal address" Google
+generates automatically for this calendar (see README). Each event is
+recognized via a stable ID (extendedProperties.private): if it already
+exists, it gets updated instead of duplicated.
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta
 
-from schultermine.google_auth import GoogleAuthenticator
-from schultermine.models import SchoolEvent
+from school_events.google_auth import GoogleAuthenticator
+from school_events.models import SchoolEvent
 
+logger = logging.getLogger(__name__)
+
+# Value stays as-is even after the project rename: it's already stored in
+# extendedProperties.private on every event synced so far. Changing it would
+# make sync stop recognizing existing calendar events as "already synced"
+# and start duplicating them.
 _PROPERTY_KEY = "schultermine_id"
 
 
@@ -33,6 +40,8 @@ class GoogleCalendarSync:
             else:
                 service.events().insert(calendarId=calendar_id, body=body).execute()
             synced += 1
+
+        logger.info("Synced %d event(s) to Google Calendar '%s'", synced, self._calendar_name)
         return synced
 
     def _get_or_create_calendar(self, service) -> str:
@@ -40,16 +49,17 @@ class GoogleCalendarSync:
         for cal in calendars:
             if cal.get("summary") == self._calendar_name:
                 return cal["id"]
+        logger.info("Calendar '%s' does not exist yet, creating it", self._calendar_name)
         created = service.calendars().insert(
             body={"summary": self._calendar_name, "timeZone": "Europe/Zurich"}
         ).execute()
         return created["id"]
 
     @staticmethod
-    def _find_existing_event_id(service, calendar_id: str, schultermine_id: str) -> str | None:
+    def _find_existing_event_id(service, calendar_id: str, event_id: str) -> str | None:
         resp = service.events().list(
             calendarId=calendar_id,
-            privateExtendedProperty=f"{_PROPERTY_KEY}={schultermine_id}",
+            privateExtendedProperty=f"{_PROPERTY_KEY}={event_id}",
             showDeleted=False,
         ).execute()
         items = resp.get("items", [])
@@ -67,6 +77,9 @@ class GoogleCalendarSync:
             start = {"date": event.event_date.isoformat()}
             end = {"date": end_date.isoformat()}
 
+        # These labels are user-facing (they end up in the calendar entry
+        # description the family reads), so they stay German on purpose,
+        # unlike the rest of this file.
         description_parts = [
             part for part in [
                 event.description,

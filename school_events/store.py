@@ -1,16 +1,15 @@
-"""Persistenz: erkannte Termine + Dedup-Status als JSON-Dateien."""
+"""Persistence: detected events + dedup state as JSON files."""
 from __future__ import annotations
 
 import hashlib
 import json
 from pathlib import Path
-from typing import Iterable
 
-from schultermine.models import SchoolEvent
+from school_events.models import SchoolEvent
 
 
 class JsonSet:
-    """Eine auf Platte gespiegelte Menge von IDs/Hashes (z.B. bereits verarbeitete Dateien)."""
+    """A set of IDs/hashes mirrored to disk (e.g. already-processed files)."""
 
     def __init__(self, path: Path):
         self._path = path
@@ -33,8 +32,13 @@ class JsonSet:
             json.dump(sorted(self._items), f, ensure_ascii=False, indent=2)
 
 
-class EventStore:
-    """Verwaltet events.json - alle bisher erkannten Termine."""
+class EventRepository:
+    """Manages events.json - all events detected so far.
+
+    Plain state storage, overwritten on every save - NOT an event-sourcing
+    store despite the similar-sounding name. See the README for why this
+    distinction matters.
+    """
 
     def __init__(self, path: Path):
         self._path = path

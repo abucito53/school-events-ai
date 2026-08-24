@@ -1,12 +1,16 @@
-"""Plattformunabhängiger Mini-Scheduler (ersetzt launchd/cron). Läuft
-dauerhaft im Vordergrund - egal ob nativ oder als Docker-Hauptprozess."""
+"""Platform-independent mini scheduler (replaces launchd/cron). Runs
+forever in the foreground - whether started natively or as the Docker
+container's main process."""
 from __future__ import annotations
 
+import logging
 import time
 from datetime import datetime
 
-from schultermine.app import Application
-from schultermine.config import SchedulerConfig
+from school_events.app import Application
+from school_events.config import SchedulerConfig
+
+logger = logging.getLogger(__name__)
 
 
 class Scheduler:
@@ -17,11 +21,12 @@ class Scheduler:
         self._last_weekly_date = None
 
     def run_forever(self) -> None:
-        print(
-            f"[Scheduler] Gestartet. Abholen alle "
-            f"{self._config.fetch_interval_minutes} Min., Wochenmail an Tag "
-            f"{self._config.weekly_weekday} um "
-            f"{self._config.weekly_hour:02d}:{self._config.weekly_minute:02d}."
+        logger.info(
+            "Scheduler started. Fetching every %d min, weekly email on weekday %d at %02d:%02d.",
+            self._config.fetch_interval_minutes,
+            self._config.weekly_weekday,
+            self._config.weekly_hour,
+            self._config.weekly_minute,
         )
         self._run_pipeline_safely()
         self._last_fetch = datetime.now()
@@ -57,11 +62,11 @@ class Scheduler:
         try:
             fetched = self._app.gmail_fetcher().fetch_new()
             if fetched:
-                print(f"[Scheduler] {len(fetched)} neue Mail(s) abgeholt.")
+                logger.info("Fetched %d new email(s)", len(fetched))
             new_events = self._app.inbox_processor().run()
-            print(f"[Scheduler] {new_events} neue/aktualisierte Termine erkannt.")
-        except Exception as e:
-            print(f"[Scheduler] Fehler im Abhol-/Verarbeitungslauf: {e}")
+            logger.info("Detected %d new/updated event(s)", new_events)
+        except Exception:
+            logger.error("Error during fetch/process run", exc_info=True)
 
     def _run_weekly_safely(self) -> None:
         try:
@@ -69,6 +74,6 @@ class Scheduler:
             body = self._app.summary_builder().build(events)
             subject = f"Schultermine nächste Woche ({datetime.now().strftime('%d.%m.%Y')})"
             self._app.gmail_mailer().send(subject, body)
-            print("[Scheduler] Wöchentliche Zusammenfassung verschickt.")
-        except Exception as e:
-            print(f"[Scheduler] Fehler bei der Wochenzusammenfassung: {e}")
+            logger.info("Sent weekly summary email")
+        except Exception:
+            logger.error("Error sending weekly summary", exc_info=True)
