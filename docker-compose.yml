@@ -1,0 +1,35 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: schultermine-ollama
+    restart: unless-stopped
+    volumes:
+      # Modellgewichte (mehrere GB) bleiben in einem benannten Docker-Volume,
+      # überleben also Neustarts/Rebuilds des Containers.
+      - ollama_data:/root/.ollama
+    ports:
+      # Nach aussen geöffnet, damit du das Modell auch ohne Docker-Exec
+      # erreichst (z.B. für manuelles Testen, oder falls du den Scheduler
+      # mal nativ statt in Docker laufen lässt).
+      - "11434:11434"
+
+  schultermine:
+    build: .
+    container_name: schultermine-ki
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    environment:
+      - TZ=Europe/Zurich
+    volumes:
+      # Alle erzeugten Daten (PDFs, Mails, events.json, lokale ICS-Kopie) -
+      # bleiben auf dem Host, unabhängig vom Container-Lebenszyklus.
+      - ${HOME}/SchulTermine:/data/SchulTermine
+      # Konfiguration + OAuth2-Dateien werden VON AUSSEN eingebunden, nie
+      # ins Image gebacken (siehe .dockerignore).
+      - ./config.yaml:/app/config.yaml:ro
+      - ./credentials.json:/app/credentials.json:ro
+      - ./token.json:/app/token.json
+
+volumes:
+  ollama_data:

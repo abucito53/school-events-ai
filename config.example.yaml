@@ -1,0 +1,53 @@
+# Kopiere diese Datei zu "config.yaml" und trage deine Daten ein.
+# Enthält KEINE Passwörter mehr - nur Pfade zu OAuth2-Dateien (credentials.json,
+# token.json). Trotzdem: nicht in öffentliche Git-Repos ablegen, da token.json
+# nach dem ersten Login ein gültiges (aber jederzeit widerrufbares) Zugriffs-
+# token enthält.
+
+gmail_oauth:
+  # Pfad zur Datei, die du beim Erstellen des OAuth-Clients in der Google
+  # Cloud Console herunterlädst (siehe README, "OAuth2 mit Gmail einrichten").
+  credentials_path: "./credentials.json"
+  # Wird beim ersten Login automatisch angelegt - danach nicht mehr anfassen.
+  token_path: "./token.json"
+  # Gmail-Label im dedizierten Konto, das über einen Filter befüllt wird
+  # (siehe README) - NUR Mails mit diesem Label werden je gelesen.
+  label_name: "Schule-KI"
+  # An diese Adresse wird die wöchentliche Zusammenfassung geschickt
+  # (kann dieselbe dedizierte Adresse oder deine private sein).
+  send_to: "schulkalender.freilager@gmail.com"
+  # Automatisch Google Kalender befüllen (empfohlen) - Proton Calendar
+  # abonniert anschliessend die von Google erzeugte iCal-Adresse.
+  sync_calendar: true
+
+paths:
+  # Nativ (venv, ohne Docker): "~/SchulTermine"
+  # Mit Docker: "/data/SchulTermine" (siehe docker-compose.yml - dieser Pfad
+  # wird im Container auf deinen echten ~/SchulTermine-Ordner gemountet).
+  base_dir: "~/SchulTermine"
+  # In base_dir/eingang landen sowohl automatisch abgeholte Mails
+  # (schultermine fetch) als auch manuell hineingezogene PDFs/.eml-Dateien.
+
+ollama:
+  # Selbstgehostetes, offenes Modell - bewusst KEINE Cloud-KI-API, damit die
+  # Inhalte nie an einen Drittanbieter gehen. Bei eurer niedrigen Mail-
+  # Frequenz lohnt sich ein grösseres, genaueres Modell statt eines
+  # schnellen kleinen - Geschwindigkeit spielt keine Rolle.
+  model: "qwen2.5:14b"
+  # Mit Docker (empfohlen): "http://ollama:11434" - der Servicename aus
+  # docker-compose.yml, von Docker intern aufgelöst. Läuft dort ohne
+  # GPU-Beschleunigung (CPU-only), was bei eurer niedrigen Mail-Frequenz
+  # keine Rolle spielt.
+  # Nativ (venv, ohne Docker): "http://localhost:11434"
+  url: "http://ollama:11434"
+
+calendar:
+  calendar_name: "Schultermine"   # Name des Google-Kalenders, der angelegt/befüllt wird
+
+scheduler:
+  # Bei eurer Frequenz (ca. 1 Mail alle 2-3 Wochen) reicht stündliches
+  # Prüfen völlig - spart unnötige Läufe gegenüber häufigerem Polling.
+  fetch_interval_minutes: 60
+  weekly_weekday: 6   # 0=Montag ... 6=Sonntag
+  weekly_hour: 18
+  weekly_minute: 30

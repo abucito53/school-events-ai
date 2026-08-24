@@ -1,0 +1,15 @@
+# Secrets - never commit these (real OAuth2 credentials/token, real config)
+credentials.json
+token.json
+config.yaml
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Runtime data (PDFs/emails/events - personal, not code)
+logs/
+
+# macOS
+.DS_Store
