@@ -1,32 +1,32 @@
 services:
   ollama:
     image: ollama/ollama:latest
-    container_name: schultermine-ollama
+    container_name: school-events-ollama
     restart: unless-stopped
     volumes:
-      # Modellgewichte (mehrere GB) bleiben in einem benannten Docker-Volume,
-      # überleben also Neustarts/Rebuilds des Containers.
+      # Model weights (several GB) live in a named Docker volume, so they
+      # survive container restarts/rebuilds.
       - ollama_data:/root/.ollama
     ports:
-      # Nach aussen geöffnet, damit du das Modell auch ohne Docker-Exec
-      # erreichst (z.B. für manuelles Testen, oder falls du den Scheduler
-      # mal nativ statt in Docker laufen lässt).
+      # Exposed to the host so you can reach the model without docker exec
+      # (e.g. for manual testing, or if you ever run the scheduler natively
+      # instead of in Docker).
       - "11434:11434"
 
-  schultermine:
+  school-events:
     build: .
-    container_name: schultermine-ki
+    container_name: school-events-ai
     restart: unless-stopped
     depends_on:
       - ollama
     environment:
       - TZ=Europe/Zurich
     volumes:
-      # Alle erzeugten Daten (PDFs, Mails, events.json, lokale ICS-Kopie) -
-      # bleiben auf dem Host, unabhängig vom Container-Lebenszyklus.
+      # All generated data (PDFs, emails, events.json, local .ics copy) -
+      # stays on the host, independent of the container's lifecycle.
       - ${HOME}/SchulTermine:/data/SchulTermine
-      # Konfiguration + OAuth2-Dateien werden VON AUSSEN eingebunden, nie
-      # ins Image gebacken (siehe .dockerignore).
+      # Config + OAuth2 files are mounted in from outside, never baked
+      # into the image (see .dockerignore).
       - ./config.yaml:/app/config.yaml:ro
       - ./credentials.json:/app/credentials.json:ro
       - ./token.json:/app/token.json

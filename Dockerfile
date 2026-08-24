@@ -1,9 +1,8 @@
 FROM python:3.12-slim
 
-# Ohne das puffert Python print()-Ausgaben, solange kein Terminal angehängt
-# ist (wie in einem Container) - Log-Zeilen würden dann erst mit grosser
-# Verzögerung (oder gar nicht) bei "docker compose logs" bzw. in Docker
-# Desktop ankommen.
+# Without this, Python buffers print()/log output whenever no terminal is
+# attached (as in a container) - log lines would then show up with a big
+# delay (or not at all) in "docker compose logs" / Docker Desktop.
 ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
@@ -11,6 +10,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY schultermine ./schultermine
+COPY school_events ./school_events
 
-CMD ["python3", "-m", "schultermine", "scheduler"]
+CMD ["python3", "-m", "school_events", "scheduler"]

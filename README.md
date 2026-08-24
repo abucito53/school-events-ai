@@ -19,11 +19,33 @@ Einzige nativ nötige Installation: Python + die Bibliotheken für den
 einmaligen Login (Teil 1). Alles andere - Ollama und der laufende Betrieb -
 steckt in `docker-compose.yml` (Teil 2).
 
+## Update von einer älteren Version (Ordner-/Package-Rename)
+
+Der Projektordner und das Python-Package hiessen bisher `schultermine-ki` /
+`schultermine` - das war der letzte deutsche Rest im sonst englischen Code
+und wurde deshalb auf `school-events-ai` / `school_events` umbenannt (Details
+siehe "Zur Sprache im Code" weiter unten). Falls du bereits eine ältere
+Version am Laufen hast, brauchst du dafür einmalig:
+
+```bash
+docker compose down                       # alten Container stoppen
+mv schultermine-ki school-events-ai       # Ordner umbenennen
+cd school-events-ai
+docker compose up -d --build              # neu bauen und starten
+```
+
+Nicht betroffen, unverändert: `~/SchulTermine/` (dein Datenordner inkl.
+`eingang/`), der Google-Kalender-Name "Schultermine" und alle bereits
+synchronisierten Kalendereinträge - dafür sorgt der weiterhin unveränderte,
+interne `schultermine_id`-Schlüssel in `calendar_sync.py` (siehe Kommentar
+dort). Nur eine alte lokale `calendar/schultermine.ics`-Backup-Datei wird
+nicht mehr aktualisiert (kann gelöscht werden, siehe "Wo landen die Daten").
+
 ## Architektur im Überblick
 
 ```
 Schul-Mail
-   │  (du leitest sie bewusst weiter, Label "Schule-KI")
+   │  (du leitest sie bewusst weiter, dediziertes Konto = Auswahl)
    ▼
 Dediziertes Gmail-Konto ──(OAuth2, nur lesen)──▶ GmailFetcher
    │                                                   │
@@ -48,14 +70,14 @@ Dediziertes Gmail-Konto ──(OAuth2, nur lesen)──▶ GmailFetcher
 Sonntags zusätzlich: GmailMailer → Zusammenfassungs-Mail (Gmail-API)
 ```
 
-### Code-Struktur (Package `schultermine/`)
+### Code-Struktur (Package `school_events/`)
 
 | Modul | Verantwortlichkeit |
 |---|---|
 | `config.py` | Lädt `config.yaml` in typisierte Dataclasses (`AppConfig`, `Paths`, ...) |
 | `models.py` | `SchoolEvent`-Dataclass, Umwandlung LLM-JSON ↔ Objekt ↔ Speicher-JSON |
 | `content.py` | `ContentExtractor`: liest PDF/.eml, liefert Text fürs LLM |
-| `llm.py` | `OllamaEventExtractor`: schickt Text an Ollama, parst Antwort zu `SchoolEvent`s |
+| `ollama_client.py` | `OllamaEventExtractor`: schickt Text an Ollama, parst Antwort zu `SchoolEvent`s |
 | `store.py` | `EventRepository`, `JsonSet`: Persistenz (events.json, Dedup-Listen) |
 | `google_auth.py` | `GoogleAuthenticator`: OAuth2-Login, Token-Refresh, API-Clients |
 | `gmail_fetcher.py` | `GmailFetcher`: holt gelabelte Mails per API |
@@ -67,6 +89,7 @@ Sonntags zusätzlich: GmailMailer → Zusammenfassungs-Mail (Gmail-API)
 | `scheduler.py` | `Scheduler`: zeitgesteuerte Endlosschleife (ersetzt launchd/cron) |
 | `app.py` | `Application`: verdrahtet alle Klassen anhand der Config |
 | `cli.py` | Kommandozeilenbefehle (`login`, `fetch`, `process`, `weekly`, `scheduler`) |
+| `logging_config.py` | Zentrale Logging-Konfiguration (Format, Log-Level) |
 
 Jede Klasse hat genau eine Aufgabe und bekommt ihre Abhängigkeiten im
 Konstruktor übergeben (`Application` in `app.py` verdrahtet das) - keine
@@ -91,24 +114,30 @@ widerrufbaren OAuth2-Token statt einem Passwort.
 Ein separates, kostenloses Konto nur für dieses Projekt (nicht dein
 privates) - z.B. `deinname.schultermine@gmail.com`.
 
-### 1.2 Gmail-Label + Filter einrichten
+### 1.2 Kein zusätzlicher Schritt nötig (Standardfall)
+
+Da das Konto aus 1.1 rein dediziert ist und du ohnehin nur relevante
+Schul-Mails dorthin weiterleitest, reicht der normale Posteingang als
+Auswahl - `config.yaml` ist bereits standardmässig auf `label_name: "INBOX"`
+eingestellt, das liest einfach alles, was in diesem Konto ankommt. Kein
+Gmail-Filter, kein Label nötig.
+
+**Nur falls du dasselbe Konto zusätzlich für anderes nutzt** und gezielt
+filtern willst, kannst du optional ein eigenes Label + einen Gmail-Filter
+einrichten:
 
 1. In Gmail: Einstellungen → **Alle Einstellungen anzeigen** → Tab
    **Filter und blockierte Adressen** → **Neuen Filter erstellen**.
-2. Feld "An" (To): die neue Adresse selbst, oder leer lassen, falls du
-   grundsätzlich alles in diesem Konto verarbeiten willst.
-3. **Label anwenden** → **Neues Label erstellen** → Name: `Schule-KI`.
+2. Feld "An" (To): die Adresse des Kontos selbst, oder ein passendes Kriterium.
+3. **Label anwenden** → **Neues Label erstellen** → Name z.B. `Schule-KI`.
 4. Filter erstellen.
-
-Ab jetzt: Jede Mail, die du (z.B. von deinem privaten Konto aus) an diese
-Adresse **weiterleitest**, landet im Label `Schule-KI` - nur das liest das
-Skript.
+5. In `config.yaml`: `label_name: "Schule-KI"` statt `"INBOX"` eintragen.
 
 ### 1.3 Google-Cloud-Projekt + OAuth2-Zugangsdaten erstellen
 
 1. Gehe zu https://console.cloud.google.com, logge dich mit dem
    **dedizierten** Konto ein, erstelle ein neues Projekt (z.B.
-   "schultermine-ki").
+   "school-events-ai").
 2. **APIs & Dienste → Bibliothek**: aktiviere **Gmail API** und
    **Google Calendar API**.
 3. **APIs & Dienste → OAuth-Zustimmungsbildschirm**:
@@ -126,7 +155,8 @@ Skript.
 **Hinweis zu "Testing"-Status:** Da die App unverifiziert bleibt, zeigt
 Google beim ersten Login eine Warnung ("Diese App wurde nicht verifiziert")
 - das ist normal für private Projekte, unter "Erweitert" → "Zu
-schultermine-ki wechseln (unsicher)" bestätigen. Da du selbst als Testnutzer
+school-events-ai wechseln (unsicher)" bestätigen (bzw. zum Namen, den du in
+1.3 für dein Google-Cloud-Projekt gewählt hast). Da du selbst als Testnutzer
 eingetragen bist, funktioniert der Zugriff dauerhaft; falls Google-seitige
 Token-Ablauf-Richtlinien für unverifizierte Apps sich ändern, reicht ein
 erneuter Login (siehe 1.4), um ein neues Token zu holen.
@@ -137,14 +167,14 @@ Der OAuth2-Login öffnet einen Browser und braucht dafür einen echten
 Desktop - das funktioniert nicht headless in Docker. Deshalb einmalig nativ:
 
 ```bash
-cd schultermine-ki
+cd school-events-ai
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 cp config.example.yaml config.yaml
 # config.yaml öffnen und send_to (+ ggf. weitere Werte) eintragen
 
-python3 -m schultermine login
+python3 -m school_events login
 ```
 
 `login` macht ausschliesslich das: öffnet ein Browserfenster → mit dem
@@ -164,7 +194,7 @@ Voraussetzung: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 installiert, Teil 1 abgeschlossen (`token.json` existiert).
 
 ```bash
-cd schultermine-ki
+cd school-events-ai
 # config.yaml: ollama.url auf "http://ollama:11434" setzen (Docker-Servicename),
 # paths.base_dir auf "/data/SchulTermine" setzen (siehe Kommentare in der Datei)
 
@@ -184,7 +214,7 @@ dir das doch zu langsam ist, tut es auch `llama3.1:8b` (in `config.yaml`
 unter `ollama.model` anpassen und mit
 `docker compose exec ollama ollama pull llama3.1:8b` laden).
 
-Das war's. Der `schultermine`-Container prüft stündlich das Gmail-Label und
+Das war's. Der `school-events`-Container prüft stündlich das Gmail-Label und
 den `eingang/`-Ordner (einstellbar über `scheduler.fetch_interval_minutes`
 in `config.yaml`), verarbeitet Neues über den `ollama`-Container,
 aktualisiert den Google Kalender, und schickt sonntags 18:30 Uhr die
@@ -198,7 +228,7 @@ Stoppen:
 docker compose down
 ```
 
-**Später in die Cloud umziehen:** Denselben Ordner (`schultermine-ki/`
+**Später in die Cloud umziehen:** Denselben Ordner (`school-events-ai/`
 inkl. `config.yaml`, `credentials.json`, `token.json`) auf einen
 Linux-Server kopieren, `docker compose up -d` - fertig, ohne jede Anpassung
 (Ollama läuft dort identisch containerisiert mit).
@@ -212,7 +242,7 @@ setzen, dann läuft derselbe Scheduler auch direkt in der venv:
 
 ```bash
 source venv/bin/activate
-python3 -m schultermine scheduler
+python3 -m school_events scheduler
 ```
 
 Läuft im Vordergrund - eher zum Testen gedacht, da es beim Schliessen des
@@ -224,11 +254,29 @@ Terminals stoppt (im Gegensatz zu `restart: unless-stopped` in Docker).
 
 ```bash
 source venv/bin/activate
-python3 -m schultermine login      # nur Login/Token erneuern, sonst nichts
-python3 -m schultermine fetch      # holt neue Mails aus dem Label "Schule-KI"
-python3 -m schultermine process    # verarbeitet alles in eingang/, aktualisiert den Kalender
-python3 -m schultermine weekly     # verschickt die Wochenübersicht sofort
+python3 -m school_events login      # nur Login/Token erneuern, sonst nichts
+python3 -m school_events fetch      # holt neue Mails ab (Standard: gesamter Posteingang)
+python3 -m school_events process    # verarbeitet alles in eingang/, aktualisiert den Kalender
+python3 -m school_events weekly     # verschickt die Wochenübersicht sofort
 ```
+
+**Detaillierte Logs für die Fehlersuche:** Jeder Befehl akzeptiert
+`--log-level DEBUG` - zeigt dann u.a. genau, was an Ollama geschickt wird,
+wie lange die Antwort dauert, und den rohen Antworttext, falls das
+JSON-Parsing mal fehlschlägt:
+
+```bash
+docker compose exec school-events python3 -m school_events process --log-level DEBUG
+```
+
+(In Docker läuft der Scheduler standardmässig mit `--log-level INFO` -
+sichtbar in `docker compose logs -f school-events`.)
+
+**Zur Sprache im Code:** Kommentare, Docstrings und Log-Meldungen im
+`school_events/`-Package sind auf Englisch. Ausnahme sind Texte, die direkt
+bei dir landen - Kalendereinträge, die Wochenmail, der Extraktions-Prompt
+ans LLM - die bleiben bewusst Deutsch, da es sich um Inhalte für dich
+(bzw. deine Familie) handelt, nicht um Code.
 
 ## Proton Calendar mit dem Google Kalender verbinden (einmalig)
 
@@ -255,8 +303,10 @@ Alles unter `~/SchulTermine/`:
 - `originals/` - archivierte Originaldateien
 - `data/events.json` - alle erkannten Termine, strukturiert
 - `data/processed_hashes.json`, `data/gmail_fetched_ids.json` - Dedup-Status
-- `calendar/schultermine.ics` - lokale Backup-Kopie (zusätzlich zum Google
-  Kalender, falls du sie einmal offline brauchst)
+- `calendar/school-events.ics` - lokale Backup-Kopie (zusätzlich zum Google
+  Kalender, falls du sie einmal offline brauchst; hiess vor dem Projekt-Rename
+  `schultermine.ics` - eine allfällige alte Datei mit diesem Namen kannst du
+  löschen)
 
 ## Grenzen dieser Lösung
 

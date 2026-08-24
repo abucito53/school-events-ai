@@ -10,12 +10,18 @@ gmail_oauth:
   credentials_path: "./credentials.json"
   # Wird beim ersten Login automatisch angelegt - danach nicht mehr anfassen.
   token_path: "./token.json"
-  # Gmail-Label im dedizierten Konto, das über einen Filter befüllt wird
-  # (siehe README) - NUR Mails mit diesem Label werden je gelesen.
-  label_name: "Schule-KI"
+  # Welche Mails im dedizierten Konto gelesen werden:
+  # - "INBOX" (Standard, empfohlen): einfach ALLES im Posteingang dieses
+  #   Kontos - passt genau, wenn du (wie empfohlen) ein rein dediziertes
+  #   Konto nutzt und ohnehin nur relevante Mails dorthin weiterleitest.
+  #   Kein zusätzlicher Gmail-Filter/Label nötig.
+  # - ein eigener Label-Name (z.B. "Schule-KI"): nur falls du dasselbe
+  #   Konto zusätzlich für anderes nutzt und gezielt filtern willst -
+  #   dann brauchst du dafür einen Gmail-Filter, siehe README.
+  label_name: "INBOX"
   # An diese Adresse wird die wöchentliche Zusammenfassung geschickt
   # (kann dieselbe dedizierte Adresse oder deine private sein).
-  send_to: "schulkalender.freilager@gmail.com"
+  send_to: "deine-adresse@example.com"
   # Automatisch Google Kalender befüllen (empfohlen) - Proton Calendar
   # abonniert anschliessend die von Google erzeugte iCal-Adresse.
   sync_calendar: true
@@ -26,7 +32,7 @@ paths:
   # wird im Container auf deinen echten ~/SchulTermine-Ordner gemountet).
   base_dir: "~/SchulTermine"
   # In base_dir/eingang landen sowohl automatisch abgeholte Mails
-  # (schultermine fetch) als auch manuell hineingezogene PDFs/.eml-Dateien.
+  # (school_events fetch) als auch manuell hineingezogene PDFs/.eml-Dateien.
 
 ollama:
   # Selbstgehostetes, offenes Modell - bewusst KEINE Cloud-KI-API, damit die
