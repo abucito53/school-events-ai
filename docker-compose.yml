@@ -24,7 +24,7 @@ services:
     volumes:
       # All generated data (PDFs, emails, events.json, local .ics copy) -
       # stays on the host, independent of the container's lifecycle.
-      - ${HOME}/SchulTermine:/data/SchulTermine
+      - ${HOME}/SchoolEvents:/data/SchoolEvents
       # Config + OAuth2 files are mounted in from outside, never baked
       # into the image (see .dockerignore).
       - ./config.yaml:/app/config.yaml:ro

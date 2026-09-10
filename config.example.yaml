@@ -46,6 +46,12 @@ ollama:
   # keine Rolle spielt.
   # Nativ (venv, ohne Docker): "http://localhost:11434"
   url: "http://ollama:11434"
+  # Wie lange auf eine Antwort von Ollama gewartet wird, bevor der Versuch
+  # als fehlgeschlagen gilt (in Sekunden). Ohne GPU-Beschleunigung kann
+  # gerade der erste Request nach einem Neustart (Modell muss erst geladen
+  # werden) mehrere Minuten dauern - Standard ist bewusst grosszügig auf
+  # 900s (15 Min.) gesetzt. Optional, kann weggelassen werden.
+  timeout_seconds: 900
 
 calendar:
   calendar_name: "Schultermine"   # Name des Google-Kalenders, der angelegt/befüllt wird

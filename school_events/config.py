@@ -47,6 +47,12 @@ class GmailOAuthConfig:
 class OllamaConfig:
     model: str
     url: str
+    # Generous default: on CPU-only Ollama (no GPU passthrough in Docker
+    # Desktop on macOS), a larger model can easily take several minutes per
+    # request, especially on the first call after a restart, when the model
+    # still has to be loaded into memory. At a low request frequency (as in
+    # this project), waiting longer is preferable to failing early.
+    timeout_seconds: int = 900
 
 
 @dataclass(frozen=True)
@@ -90,6 +96,7 @@ class AppConfig:
         ollama = OllamaConfig(
             model=raw["ollama"]["model"],
             url=raw["ollama"]["url"],
+            timeout_seconds=int(raw["ollama"].get("timeout_seconds", 900)),
         )
 
         scheduler_raw = raw.get("scheduler", {})

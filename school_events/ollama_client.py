@@ -111,9 +111,20 @@ class OllamaEventExtractor:
                     "stream": False,
                     "options": {"temperature": 0.1},
                 },
-                timeout=300,
+                timeout=self._config.timeout_seconds,
             )
             response.raise_for_status()
+        except requests.exceptions.Timeout:
+            elapsed = time.monotonic() - start
+            logger.error(
+                "Ollama did not respond within %ds (model=%s, hash=%s). On "
+                "CPU-only Ollama a large model can be slow, especially right "
+                "after a restart while the model is still loading - consider "
+                "raising ollama.timeout_seconds in config.yaml if this keeps "
+                "happening.",
+                self._config.timeout_seconds, self._config.model, content_hash,
+            )
+            raise
         except requests.RequestException:
             elapsed = time.monotonic() - start
             logger.error(
